@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Engine Browser</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#5D5CDE',
+                    },
+                },
+            },
+        }
+    </script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+        .tab {
+            transition: all 0.2s ease;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .tab:hover {
+            background-color: rgba(93, 92, 222, 0.1);
+        }
+        .tab.active {
+            border-bottom-width: 3px;
+            border-color: #5D5CDE;
+        }
+        .dark .tab:hover {
+            background-color: rgba(93, 92, 222, 0.2);
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .url-bar {
+            transition: all 0.2s ease;
+        }
+        .url-bar:focus {
+            border-color: #5D5CDE;
+        }
+    </style>
+</head>
+
+<body class="bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200 min-h-screen">
+    <div class="container mx-auto px-4 py-6 max-w-5xl">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden">
+            <!-- Browser toolbar -->
+            <div class="bg-gray-100 dark:bg-gray-700 p-2 flex items-center">
+                <button id="new-tab-btn" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 mr-2">
+                    <i class="fas fa-plus text-gray-600 dark:text-gray-300"></i>
+                </button>
+                <button id="back-btn" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 mr-1">
+                    <i class="fas fa-arrow-left text-gray-600 dark:text-gray-300"></i>
+                </button>
+                <button id="forward-btn" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 mr-2">
+                    <i class="fas fa-arrow-right text-gray-600 dark:text-gray-300"></i>
+                </button>
+                <button id="refresh-btn" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 mr-2">
+                    <i class="fas fa-redo-alt text-gray-600 dark:text-gray-300"></i>
+                </button>
+                <button id="home-btn" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 mr-2">
+                    <i class="fas fa-home text-gray-600 dark:text-gray-300"></i>
+                </button>
+            </div>
+            
+            <!-- Tabs bar -->
+            <div id="tabs-container" class="flex overflow-x-auto bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+                <!-- Tabs will be added here dynamically -->
+            </div>
+            
+            <!-- Browser content -->
+            <div id="browser-content" class="p-4">
+                <!-- Tab contents will be added here dynamically -->
+            </div>
+        </div>
+        
+        <div class="mt-8 bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
+            <h2 class="text-xl font-bold mb-4">Instructions</h2>
+            <p class="mb-2">This browser simulator allows you to search using multiple engines:</p>
+            <ul class="list-disc pl-5 mb-4">
+                <li>Create new tabs with the + button</li>
+                <li>Select a search engine for each tab</li>
+                <li>Enter your search terms in the address bar</li>
+                <li>Search results will open in a new browser tab</li>
+            </ul>
+            <p><strong>Note:</strong> Due to platform limitations, this simulator redirects to real search engines rather than displaying content directly.</p>
+        </div>
+    </div>
+    
+    <script>
+        // Dark mode detection
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.documentElement.classList.add('dark');
+        }
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', event => {
+            if (event.matches) {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+        });
+        
+        // Search engines configuration
+        const searchEngines = [
+            { id: 'google', name: 'Google', url: 'https://www.google.com/search?q=', icon: 'fa-google' },
+            { id: 'bing', name: 'Bing', url: 'https://www.bing.com/search?q=', icon: 'fa-windows' },
+            { id: 'duckduckgo', name: 'DuckDuckGo', url: 'https://duckduckgo.com/?q=', icon: 'fa-duck' }, 
+            { id: 'yahoo', name: 'Yahoo', url: 'https://search.yahoo.com/search?p=', icon: 'fa-y' },
+            { id: 'brave', name: 'Brave Search', url: 'https://search.brave.com/search?q=', icon: 'fa-b' },
+            { id: 'ecosia', name: 'Ecosia', url: 'https://www.ecosia.org/search?q=', icon: 'fa-tree' },
+            { id: 'startpage', name: 'Startpage', url: 'https://www.startpage.com/do/search?q=', icon: 'fa-s' },
+            { id: 'baidu', name: 'Baidu', url: 'https://www.baidu.com/s?wd=', icon: 'fa-paw' },
+            { id: 'yandex', name: 'Yandex', url: 'https://yandex.com/search/?text=', icon: 'fa-y' },
+        ];
+        
+        let tabs = [];
+        let activeTabId = null;
+        let tabCounter = 0;
+        
+        // Initialize browser
+        function initBrowser() {
+            document.getElementById('new-tab-btn').addEventListener('click', addNewTab);
+            document.getElementById('back-btn').addEventListener('click', goBack);
+            document.getElementById('forward-btn').addEventListener('click', goForward);
+            document.getElementById('refresh-btn').addEventListener('click', refreshPage);
+            document.getElementById('home-btn').addEventListener('click', goHome);
+            
+            // Create first tab
+            addNewTab();
+        }
+        
+        // Create a new tab
+        function addNewTab() {
+            const tabId = `tab-${tabCounter++}`;
+            const defaultEngine = searchEngines[0];
+            
+            // Create tab
+            const tabElement = document.createElement('div');
+            tabElement.className = 'tab py-2 px-4 cursor-pointer border-b-2 border-transparent flex items-center';
+            tabElement.setAttribute('data-tab-id', tabId);
+            tabElement.innerHTML = `
+                <i class="fab ${defaultEngine.icon || 'fa-globe'} mr-2"></i>
+                <span>New Tab</span>
+                <button class="close-tab ml-2 p-1 rounded-full hover:bg-gray-300 dark:hover:bg-gray-600">
+                    <i class="fas fa-times text-xs"></i>
+                </button>
+            `;
+            document.getElementById('tabs-container').appendChild(tabElement);
+            
+            // Tab click event
+            tabElement.addEventListener('click', (e) => {
+                if (!e.target.closest('.close-tab')) {
+                    setActiveTab(tabId);
+                }
+            });
+            
+            // Close tab button
+            tabElement.querySelector('.close-tab').addEventListener('click', (e) => {
+                e.stopPropagation();
+                closeTab(tabId);
+            });
+            
+            // Create tab content
+            const contentElement = document.createElement('div');
+            contentElement.className = 'tab-content';
+            contentElement.setAttribute('data-tab-id', tabId);
+            contentElement.innerHTML = `
+                <div class="mb-4 flex flex-col md:flex-row items-stretch">
+                    <div class="url-bar-container flex-1 flex">
+                        <div class="flex items-center bg-gray-100 dark:bg-gray-700 rounded-l-lg px-3">
+                            <i class="fas fa-search text-gray-500"></i>
+                        </div>
+                        <input 
+                            type="text" 
+                            class="url-bar flex-1 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 p-3 rounded-r-lg focus:outline-none w-full text-base"
+                            placeholder="Search or enter web address">
+                    </div>
+                    <div class="search-engine-selector mt-2 md:mt-0 md:ml-2">
+                        <select class="engine-select bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg p-3 focus:outline-none focus:border-primary">
+                            ${searchEngines.map(engine => 
+                                `<option value="${engine.id}">${engine.name}</option>`
+                            ).join('')}
+                        </select>
+                    </div>
+                </div>
+                <div class="browser-page bg-gray-50 dark:bg-gray-800 p-6 rounded-lg min-h-[300px] flex items-center justify-center">
+                    <div class="text-center">
+                        <div class="text-6xl mb-4 text-primary">
+                            <i class="fab ${defaultEngine.icon || 'fa-globe'}"></i>
+                        </div>
+                        <h2 class="text-xl font-bold mb-2">Welcome to Multi-Engine Browser</h2>
+                        <p class="text-gray-600 dark:text-gray-400 mb-6">Search the web using your preferred engine</p>
+                    </div>
+                </div>
+            `;
+            document.getElementById('browser-content').appendChild(contentElement);
+            
+            // Handle search/navigation
+            const urlBar = contentElement.querySelector('.url-bar');
+            urlBar.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    performSearch(tabId);
+                }
+            });
+            
+            // Store tab data
+            tabs.push({
+                id: tabId,
+                title: 'New Tab',
+                engine: defaultEngine.id,
+                history: [],
+                historyIndex: -1
+            });
+            
+            // Set as active
+            setActiveTab(tabId);
+        }
+        
+        // Set active tab
+        function setActiveTab(tabId) {
+            // Remove active class from all tabs
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            // Add active class to selected tab
+            document.querySelector(`.tab[data-tab-id="${tabId}"]`).classList.add('active');
+            document.querySelector(`.tab-content[data-tab-id="${tabId}"]`).classList.add('active');
+            
+            activeTabId = tabId;
+        }
+        
+        // Close a tab
+        function closeTab(tabId) {
+            // Remove tab elements
+            document.querySelector(`.tab[data-tab-id="${tabId}"]`).remove();
+            document.querySelector(`.tab-content[data-tab-id="${tabId}"]`).remove();
+            
+            // Remove from tabs array
+            tabs = tabs.filter(tab => tab.id !== tabId);
+            
+            // If closing active tab, activate another one
+            if (activeTabId === tabId && tabs.length > 0) {
+                setActiveTab(tabs[0].id);
+            }
+            
+            // If no tabs left, create a new one
+            if (tabs.length === 0) {
+                addNewTab();
+            }
+        }
+        
+        // Perform search or navigate to URL
+        function performSearch(tabId) {
+            const tab = tabs.find(t => t.id === tabId);
+            const contentElement = document.querySelector(`.tab-content[data-tab-id="${tabId}"]`);
+            const urlBar = contentElement.querySelector('.url-bar');
+            const engineSelect = contentElement.querySelector('.engine-select');
+            
+            const query = urlBar.value.trim();
+            if (!query) return;
+            
+            // Get selected engine
+            const engineId = engineSelect.value;
+            const engine = searchEngines.find(e => e.id === engineId);
+            tab.engine = engineId;
+            
+            // Update tab icon and title
+            const tabElement = document.querySelector(`.tab[data-tab-id="${tabId}"]`);
+            tabElement.querySelector('i').className = `fab ${engine.icon || 'fa-globe'} mr-2`;
+            tabElement.querySelector('span').textContent = query.length > 15 ? query.substring(0, 15) + '...' : query;
+            
+            // Create search URL and open in new tab
+            let searchUrl;
+            if (query.startsWith('http://') || query.startsWith('https://')) {
+                searchUrl = query;
+            } else if (query.includes('.') && !query.includes(' ')) {
+                searchUrl = 'https://' + query;
+            } else {
+                searchUrl = engine.url + encodeURIComponent(query);
+            }
+            
+            // Open in new tab
+            window.open(searchUrl, '_blank');
+            
+            // Update tab history
+            tab.history = tab.history.slice(0, tab.historyIndex + 1);
+            tab.history.push({
+                url: searchUrl,
+                title: query,
+                engine: engineId
+            });
+            tab.historyIndex = tab.history.length - 1;
+        }
+        
+        // Navigation functions
+        function goBack() {
+            if (!activeTabId) return;
+            
+            const tab = tabs.find(t => t.id === activeTabId);
+            if (tab.historyIndex > 0) {
+                tab.historyIndex--;
+                updateTabFromHistory(tab);
+            }
+        }
+        
+        function goForward() {
+            if (!activeTabId) return;
+            
+            const tab = tabs.find(t => t.id === activeTabId);
+            if (tab.historyIndex < tab.history.length - 1) {
+                tab.historyIndex++;
+                updateTabFromHistory(tab);
+            }
+        }
+        
+        function updateTabFromHistory(tab) {
+            const historyItem = tab.history[tab.historyIndex];
+            const contentElement = document.querySelector(`.tab-content[data-tab-id="${tab.id}"]`);
+            const urlBar = contentElement.querySelector('.url-bar');
+            const engineSelect = contentElement.querySelector('.engine-select');
+            
+            urlBar.value = historyItem.title;
+            engineSelect.value = historyItem.engine;
+            
+            const tabElement = document.querySelector(`.tab[data-tab-id="${tab.id}"]`);
+            const engine = searchEngines.find(e => e.id === historyItem.engine);
+            tabElement.querySelector('i').className = `fab ${engine.icon || 'fa-globe'} mr-2`;
+            tabElement.querySelector('span').textContent = historyItem.title.length > 15 ? 
+                historyItem.title.substring(0, 15) + '...' : historyItem.title;
+        }
+        
+        function refreshPage() {
+            if (!activeTabId) return;
+            const tab = tabs.find(t => t.id === activeTabId);
+            
+            if (tab.historyIndex >= 0) {
+                updateTabFromHistory(tab);
+            }
+        }
+        
+        function goHome() {
+            if (!activeTabId) return;
+            
+            const contentElement = document.querySelector(`.tab-content[data-tab-id="${activeTabId}"]`);
+            const urlBar = contentElement.querySelector('.url-bar');
+            urlBar.value = '';
+            
+            const tabElement = document.querySelector(`.tab[data-tab-id="${activeTabId}"]`);
+            tabElement.querySelector('span').textContent = 'New Tab';
+            
+            // Update engine icon
+            const engineSelect = contentElement.querySelector('.engine-select');
+            const engineId = engineSelect.value;
+            const engine = searchEngines.find(e => e.id === engineId);
+            tabElement.querySelector('i').className = `fab ${engine.icon || 'fa-globe'} mr-2`;
+        }
+        
+        // Initialize browser when the DOM is loaded
+        document.addEventListener('DOMContentLoaded', initBrowser);
+    </script>
+</body>
+</html>
